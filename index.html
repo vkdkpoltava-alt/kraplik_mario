@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="uk">
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#101219">
 <title>Краплик · Сигнал порятунку</title>
 <style>
@@ -11,6 +11,8 @@
   main{width:min(100% - 28px,1080px);margin:clamp(12px,4vh,48px) auto}
   header,.readout,footer,.controls,.stations{display:flex;align-items:center;justify-content:space-between;gap:10px}
   header{margin-bottom:15px;align-items:end}
+  .header-actions{display:flex;gap:8px;align-items:center}
+  #pause[hidden]{display:none}
   .identity{display:flex;align-items:center;gap:12px}
   .mark{width:38px;height:38px;flex:none;background:var(--red);clip-path:polygon(39% 0,61% 0,61% 28%,85% 28%,85% 42%,100% 42%,100% 82%,85% 82%,85% 100%,15% 100%,15% 82%,0 82%,0 42%,15% 42%,15% 28%,39% 28%);display:grid;place-items:center;color:#231629;font:bold 26px monospace}
   h1,h2,p{margin:0}
@@ -45,14 +47,54 @@
   .controls button{min-width:50px;min-height:45px;font-size:18px}
   .controls button:last-child{margin-left:auto}
   .controls button.held{background:#774352}
+  #rotate-hint{display:none}
+  body.immersive-active{overflow:hidden;overscroll-behavior:none}
+  main.immersive{
+    position:fixed;inset:0;z-index:1000;width:100%;max-width:none;margin:0;
+    height:100vh;height:var(--viewport-height,100dvh);overflow:hidden;
+    padding:max(6px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));
+    background:#110f1c;touch-action:none;
+  }
+  .immersive::backdrop{background:#110f1c}
+  .immersive header{position:absolute;top:max(6px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));z-index:4;margin:0}
+  .immersive .identity,.immersive #restart,.immersive .stations,.immersive footer{display:none}
+  .immersive .header-actions{gap:6px}
+  .immersive .header-actions button{min-height:32px;padding:6px 9px;font-size:12px}
+  .immersive .cabinet{height:100%;border:0;box-shadow:none;background:transparent;display:grid;grid-template-rows:32px minmax(0,1fr)}
+  .immersive .readout{padding:0 200px 0 4px;font-size:12px;min-width:0;gap:8px}
+  .immersive .screen,.immersive .screen:has(.overlay:not([hidden])){
+    min-height:0;width:min(100%,calc(var(--screen-height,70vh)*1.777778));height:auto;
+    aspect-ratio:16/9;align-self:center;justify-self:center;border:0;
+  }
+  .immersive .screen canvas,.immersive .screen:has(.overlay:not([hidden])) canvas{width:100%;height:100%;object-fit:contain}
+  .immersive .overlay{padding:clamp(10px,3vw,30px)}
+  .immersive h2{font-size:clamp(24px,6vh,45px)}
+  .immersive .card p:not(.eyebrow){font-size:clamp(12px,3vh,16px)}
+  .immersive .controls{
+    display:flex;position:absolute;z-index:3;left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));
+    bottom:max(12px,env(safe-area-inset-bottom));margin:0;gap:10px;pointer-events:none;
+  }
+  .immersive .controls button{pointer-events:auto;min-width:58px;min-height:58px;padding:10px;background:#282035dc;border:2px solid #9b7c95;font-size:20px;border-radius:8px}
+  .immersive .controls button:last-child{min-width:88px;font-size:16px}
+  .immersive .controls button.held{background:#784557}
+  .immersive:has(.overlay:not([hidden])) .controls{visibility:hidden}
+  @media(orientation:portrait){
+    .immersive .readout{padding:40px 4px 0;height:70px}
+    .immersive .cabinet{grid-template-rows:70px minmax(0,1fr)}
+    .immersive #rotate-hint{display:block;position:absolute;top:calc(max(6px,env(safe-area-inset-top)) + 82px);left:12px;right:12px;text-align:center;font-size:13px;color:var(--zone);pointer-events:none}
+  }
   @media(pointer:coarse),(max-width:680px){.controls{display:flex}.keyboard{display:none}}
-  @media(max-width:590px){header{align-items:center}.mark{width:29px;height:29px;font-size:19px}.readout{font-size:11px}.meters{gap:8px}.stations span{padding:6px;font-size:10px}.card{width:min(74%,350px)}.card .eyebrow{display:none}.card p:not(.eyebrow){margin-bottom:7px}h2{margin:0 0 5px}#action{padding:7px 9px}}
+  @media(max-width:590px){header{align-items:center;flex-wrap:wrap}.header-actions{margin-left:auto}.mark{width:29px;height:29px;font-size:19px}.readout{font-size:11px}.meters{gap:8px}.stations span{padding:6px;font-size:10px}.card{width:min(74%,350px)}.card .eyebrow{display:none}.card p:not(.eyebrow){margin-bottom:7px}h2{margin:0 0 5px}#action{padding:7px 9px}}
   @media(max-width:380px){.screen:has(.overlay:not([hidden])){min-height:187px}.screen:has(.overlay:not([hidden])) canvas{height:187px;object-fit:cover}.card{width:84%}}
 </style>
-<main>
+<main id="game-shell">
   <header>
     <div class="identity"><div class="mark" aria-hidden="true">+</div><div><p class="eyebrow">Станція переливання крові</p><h1>Сигнал порятунку</h1></div></div>
-    <button id="restart" type="button" title="Почати новий маршрут">Нова гра</button>
+    <div class="header-actions">
+      <button id="restart" type="button" title="Почати новий маршрут">Нова гра</button>
+      <button id="pause" type="button" hidden>Пауза</button>
+      <button id="fullscreen" type="button" aria-controls="game-shell" aria-pressed="false">⛶ На весь екран</button>
+    </div>
   </header>
   <div class="cabinet">
     <div class="readout"><strong id="sector"></strong><div class="meters"><span id="hearts" aria-label="Запас енергії"></span><span id="cells" aria-label="Запобіжники"></span></div></div>
@@ -67,6 +109,7 @@
     </nav>
   </div>
   <div class="controls" aria-label="Сенсорне керування"><button type="button" data-key="left" aria-label="Ліворуч">◀</button><button type="button" data-key="right" aria-label="Праворуч">▶</button><button type="button" data-key="jump">↑ Стрибок</button></div>
+  <p id="rotate-hint" role="status">Поверни смартфон горизонтально ↻</p>
   <footer><span class="keyboard">← → або A / D · рух &nbsp; / &nbsp; Пробіл · стрибок &nbsp; / &nbsp; Esc · пауза</span><span id="route"></span></footer>
 </main>
 <script>
@@ -163,6 +206,8 @@ function hud() {
 
 function modal(state, tag, title, copy, label, next) {
   mode = state;
+  $("pause").textContent = state==="pause" ? "Продовжити" : "Пауза";
+  $("pause").disabled = state!=="pause";
   $("overline").textContent = tag;
   $("headline").textContent = title;
   $("message").textContent = copy;
@@ -173,6 +218,8 @@ function modal(state, tag, title, copy, label, next) {
 
 function play() {
   mode = "play";
+  $("pause").textContent = "Пауза";
+  $("pause").disabled = false;
   $("overlay").hidden = true;
   $("action").blur();
 }
@@ -900,6 +947,105 @@ function pause() {
   else if (mode==="pause") play();
 }
 
+const shell = $("game-shell");
+const fullscreenButton = $("fullscreen");
+let fullscreenBusy = false, nativeWasActive = false, orientationLocked = false;
+
+function clearInput() {
+  held.clear();
+  for (const {button} of touches.values()) button.classList.remove("held");
+  touches.clear();
+}
+
+function ownsFullscreen() {
+  return (document.fullscreenElement || document.webkitFullscreenElement)===shell;
+}
+
+function fitFullscreen() {
+  if (!shell.classList.contains("immersive")) return;
+  const height = ownsFullscreen() ? window.innerHeight : window.visualViewport?.height || window.innerHeight;
+  shell.style.setProperty("--viewport-height",Math.round(height)+"px");
+  const style = getComputedStyle(shell);
+  const padding = parseFloat(style.paddingTop)+parseFloat(style.paddingBottom);
+  const readout = document.querySelector(".readout").getBoundingClientRect().height;
+  shell.style.setProperty("--screen-height",Math.max(1,shell.clientHeight-padding-readout)+"px");
+  if (window.innerHeight>window.innerWidth && mode==="play") pause();
+}
+
+function setImmersive(active) {
+  shell.classList.toggle("immersive",active);
+  document.body.classList.toggle("immersive-active",active);
+  fullscreenButton.setAttribute("aria-pressed",String(active));
+  fullscreenButton.textContent = active ? "⛶ Згорнути" : "⛶ На весь екран";
+  $("pause").hidden = !active;
+  clearInput();
+  if (!active && orientationLocked) {
+    window.screen.orientation?.unlock?.();
+    orientationLocked = false;
+  }
+  requestAnimationFrame(fitFullscreen);
+}
+
+function syncFullscreen() {
+  const active = ownsFullscreen();
+  // Native exit also fires when the phone's system Back or browser exit is used.
+  if (active || nativeWasActive) setImmersive(active);
+  nativeWasActive = active;
+}
+
+async function toggleFullscreen() {
+  if (fullscreenBusy) return;
+  fullscreenBusy = true;
+  fullscreenButton.disabled = true;
+  try {
+    if (shell.classList.contains("immersive")) {
+      if (ownsFullscreen()) {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exit) await exit.call(document);
+        syncFullscreen();
+      } else {
+        setImmersive(false);
+      }
+    } else {
+      // The page layout also works in mobile browsers without native fullscreen.
+      setImmersive(true);
+      const request = shell.requestFullscreen || shell.webkitRequestFullscreen;
+      if (request) {
+        try { await request.call(shell); } catch { /* Keep the fitted page layout. */ }
+      }
+      if (ownsFullscreen()) {
+        nativeWasActive = true;
+        try {
+          if (window.screen.orientation?.lock) {
+            await window.screen.orientation.lock("landscape");
+            orientationLocked = true;
+            if (!shell.classList.contains("immersive")) window.screen.orientation.unlock();
+          }
+        } catch { /* The portrait hint explains how to rotate manually. */ }
+      }
+      fitFullscreen();
+    }
+  } catch {
+    if (!ownsFullscreen()) setImmersive(false);
+  } finally {
+    fullscreenBusy = false;
+    fullscreenButton.disabled = false;
+  }
+}
+
+fullscreenButton.onclick = toggleFullscreen;
+$("pause").onclick = pause;
+document.addEventListener("fullscreenchange",syncFullscreen);
+document.addEventListener("webkitfullscreenchange",syncFullscreen);
+window.addEventListener("resize",fitFullscreen);
+window.visualViewport?.addEventListener("resize",fitFullscreen);
+document.addEventListener("visibilitychange",()=>{
+  if (document.hidden) {
+    clearInput();
+    if (mode==="play") pause();
+  }
+});
+
 window.addEventListener("keydown",event=>{
   if (event.code==="Escape" && !event.repeat) pause();
   const key = keys.get(event.code);
@@ -913,11 +1059,7 @@ window.addEventListener("keydown",event=>{
   held.add(key);
 });
 window.addEventListener("keyup",event=>held.delete(keys.get(event.code)));
-window.addEventListener("blur",()=>{
-  held.clear();
-  for (const {button} of touches.values()) button.classList.remove("held");
-  touches.clear();
-});
+window.addEventListener("blur",clearInput);
 for (const button of document.querySelectorAll("[data-key]")) {
   const key = button.dataset.key;
   button.addEventListener("pointerdown",event=>{
