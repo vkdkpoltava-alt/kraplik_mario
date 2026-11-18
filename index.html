@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="uk">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101219">
+<title>Краплик · Сигнал порятунку</title>
+<style>
+  *{box-sizing:border-box}
+  :root{color-scheme:dark;--paper:#fff4e8;--muted:#bcb1c4;--red:#ff716e;--line:#403349;--zone:#ffa09b}
+  body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 12% 0%,#452338 0%,transparent 45%),radial-gradient(ellipse at 90% 85%,#18283e 0%,transparent 44%),#110f1c;color:var(--paper);font:15px/1.5 system-ui,sans-serif}
+  main{width:min(100% - 28px,1080px);margin:clamp(12px,4vh,48px) auto}
+  header,.readout,footer,.controls,.stations{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  header{margin-bottom:15px;align-items:end}
+  .identity{display:flex;align-items:center;gap:12px}
+  .mark{width:38px;height:38px;flex:none;background:var(--red);clip-path:polygon(39% 0,61% 0,61% 28%,85% 28%,85% 42%,100% 42%,100% 82%,85% 82%,85% 100%,15% 100%,15% 82%,0 82%,0 42%,15% 42%,15% 28%,39% 28%);display:grid;place-items:center;color:#231629;font:bold 26px monospace}
+  h1,h2,p{margin:0}
+  h1{font-size:clamp(21px,4vw,41px);letter-spacing:-.055em;line-height:1}
+  .eyebrow,.readout,.stations,footer{font-family:"Courier New",monospace}
+  .eyebrow{color:var(--red);font-size:11px;font-weight:bold;letter-spacing:.11em;text-transform:uppercase}
+  .cabinet{border:1px solid var(--line);background:#191523;box-shadow:0 6px #0c0a14,0 18px 54px #08061199}
+  .readout{padding:10px 14px;color:var(--zone);font-size:13px}
+  .meters{display:flex;align-items:center;gap:16px}
+  #hearts{color:#ff8181;letter-spacing:2px;white-space:nowrap}
+  #cells{color:#ffe58a;white-space:nowrap}
+  .screen{position:relative;background:#17172a;border-block:1px solid var(--line);isolation:isolate;overflow:hidden}
+  canvas{display:block;width:100%;height:auto;image-rendering:pixelated;image-rendering:crisp-edges}
+  .overlay{position:absolute;inset:0;display:grid;align-items:center;background:linear-gradient(90deg,#100b1ae8 0%,#100b1ac2 40%,#100b1a18 77%);padding:clamp(12px,4vw,44px)}
+  .overlay[hidden]{display:none}
+  .card{border-left:3px solid var(--zone);padding:clamp(7px,1.7vw,18px);width:min(55%,490px)}
+  .card .eyebrow{color:var(--zone)}
+  h2{font-size:clamp(23px,5.3vw,61px);line-height:1;letter-spacing:-.06em;margin:5px 0 12px;text-wrap:balance}
+  .card p:not(.eyebrow){color:#f0dde0;font-size:clamp(12px,2.4vw,16px);margin-bottom:16px;max-width:34ch}
+  button{font:700 13px "Courier New",monospace;color:var(--paper);background:#242032;border:1px solid #604d64;padding:8px 11px;cursor:pointer;touch-action:none;user-select:none}
+  button:hover{background:#41334a}
+  button:focus-visible{outline:2px solid #ffe58a;outline-offset:3px}
+  #action{background:var(--zone);color:#211427;border:0;box-shadow:3px 3px #5e354c;padding:11px 16px}
+  #action:hover{filter:brightness(1.14)}
+  .stations{display:grid;grid-template-columns:repeat(3,1fr);padding:0;gap:0;font-size:12px;color:var(--muted)}
+  .stations span{border-top:3px solid #4a3c4f;padding:8px 12px}
+  .stations span+span{border-left:1px solid var(--line)}
+  .stations .current{color:var(--paper);border-top-color:var(--zone);background:#ffffff08}
+  .stations .done{border-top-color:#87d1a4;color:#a7dfb8}
+  footer{padding-top:15px;flex-wrap:wrap;color:var(--muted);font-size:12px}
+  .controls{display:none;margin-top:12px;gap:6px;touch-action:none}
+  .controls button{min-width:50px;min-height:45px;font-size:18px}
+  .controls button:last-child{margin-left:auto}
+  .controls button.held{background:#774352}
+  @media(pointer:coarse),(max-width:680px){.controls{display:flex}.keyboard{display:none}}
+  @media(max-width:590px){header{align-items:center}.mark{width:29px;height:29px;font-size:19px}.readout{font-size:11px}.meters{gap:8px}.stations span{padding:6px;font-size:10px}.card{width:min(74%,350px)}.card .eyebrow{display:none}.card p:not(.eyebrow){margin-bottom:7px}h2{margin:0 0 5px}#action{padding:7px 9px}}
+  @media(max-width:380px){.screen:has(.overlay:not([hidden])){min-height:187px}.screen:has(.overlay:not([hidden])) canvas{height:187px;object-fit:cover}.card{width:84%}}
+</style>
+<main>
+  <header>
+    <div class="identity"><div class="mark" aria-hidden="true">+</div><div><p class="eyebrow">Станція переливання крові</p><h1>Сигнал порятунку</h1></div></div>
+    <button id="restart" type="button" title="Почати новий маршрут">Нова гра</button>
+  </header>
+  <div class="cabinet">
+    <div class="readout"><strong id="sector"></strong><div class="meters"><span id="hearts" aria-label="Запас енергії"></span><span id="cells" aria-label="Запобіжники"></span></div></div>
+    <div class="screen">
+      <canvas id="game" width="384" height="216" aria-label="Піксельний платформер про Краплика"></canvas>
+      <div class="overlay" id="overlay">
+        <div class="card"><p class="eyebrow" id="overline"></p><h2 id="headline"></h2><p id="message"></p><button id="action" type="button"></button></div>
+      </div>
+    </div>
+    <nav class="stations" aria-label="Зони станції">
+      <span>01 Реєстратура</span><span>02 Лабораторія</span><span>03 Холодовий блок</span>
+    </nav>
+  </div>
+  <div class="controls" aria-label="Сенсорне керування"><button type="button" data-key="left" aria-label="Ліворуч">◀</button><button type="button" data-key="right" aria-label="Праворуч">▶</button><button type="button" data-key="jump">↑ Стрибок</button></div>
+  <footer><span class="keyboard">← → або A / D · рух &nbsp; / &nbsp; Пробіл · стрибок &nbsp; / &nbsp; Esc · пауза</span><span id="route"></span></footer>
+</main>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const canvas = $("game");
+const ctx = canvas.getContext("2d");
+const W = canvas.width, H = canvas.height;
+const stages = [
+  { name:"Реєстратура", note:"Роботи-прибиральники й візки перегородили прохід. Стрибай їм на корпус згори.",
+    wall:"#452e43", light:"#634453", tile:"#91505b", top:"#eca59a", accent:"#ffb39e", low:"#211829", ink:"#170f23" },
+  { name:"Лабораторія", note:"Дрони пікірують, коли спалахує червоне око. Жовті пружини перекидають через широкі провалля.",
+    wall:"#204550", light:"#32626a", tile:"#3d7a79", top:"#8cdbbd", accent:"#a5f5c9", low:"#122a37", ink:"#0c1b2a" },
+  { name:"Холодовий блок", note:"Крижані кульки розганяються ривками. Не затримуйся на потрісканій підлозі.",
+    wall:"#2c385f", light:"#435580", tile:"#526c9d", top:"#b0ddfb", accent:"#b4dfff", low:"#18243f", ink:"#111a32" }
+];
+const keys = new Map([
+  ["ArrowLeft","left"],["KeyA","left"],["ArrowRight","right"],["KeyD","right"],
+  ["Space","jump"],["ArrowUp","jump"],["KeyW","jump"]
+]);
+const held = new Set(), touches = new Map();
+const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+const enemySizes = {cart:[20,11], cleaner:[18,13], drone:[18,12], frost:[15,14]};
+let seed, stageIndex, level, player, mode, time, camera, energy, collected, checkpoint;
+let jumpBuffer = 0, coyote = 0, invulnerable = 0, promptTimer = 0, particles = [], visualTime = 0;
+
+function randomFor(value) {
+  return () => {
+    value = (Math.imul(1664525, value) + 1013904223) >>> 0;
+    return value / 4294967296;
+  };
+}
+
+function generate(routeSeed, zone) {
+  const random = randomFor((routeSeed ^ Math.imul(zone + 1, 0x9e3779b1)) >>> 0);
+  const integer = (min, max) => min + Math.floor(random() * (max - min + 1));
+  const platforms = [{x:0,y:173,base:173,w:148,type:"floor"}];
+  const vents = [], enemies = [], fuses = [], kits = [];
+  const count = 12;
+  const launchAt = [3+integer(0,1),7+integer(0,1),10];
+  for (let i = 1; i <= count; i++) {
+    const prev = platforms.at(-1);
+    const boosted = zone===1 && launchAt.includes(i);
+    const gap = boosted ? integer(116,132) : integer(26,zone===0 ? 48 : 52);
+    const x = prev.x + prev.w + gap;
+    const y = clamp(prev.base + (boosted ? integer(-27,9) : integer(-23,24)), 117, 181);
+    const w = i === count ? 164 : integer(75,122);
+    const type = zone!==2 ? "floor" : [2,5,8,11].includes(i) ? "lift" : [3,7,10].includes(i) ? "ice" : "floor";
+    const platform = {x,y,base:y,w,type,phase:random()*6.28,crack:0,rebuild:0};
+    platforms.push(platform);
+    if (boosted) {
+      prev.spring = {x:prev.x+prev.w-22, direction:1};
+      platform.spring = {x:platform.x+18, direction:-1};
+    }
+    if (zone === 0 && [2,4,7,10,11].includes(i)) {
+      enemies.push({kind:"cart",platform,phase:random()*6.28,stopped:0,travel:0});
+    }
+    if (zone === 1 && !boosted && [2,5,6,9,11].includes(i)) {
+      vents.push({x:x-gap/2,top:Math.min(y, prev.base)-14,phase:random()*2.9});
+    }
+    if ([3,6,9].includes(i)) fuses.push({platform,offset:integer(25,w-35),taken:false});
+    if ((zone===1 && [5,10].includes(i)) || (zone===2 && [4,9].includes(i))) {
+      kits.push({platform,offset:integer(24,w-30),taken:false});
+    }
+  }
+  platforms[4].save = true;
+  platforms[8].save = true;
+  const kind = ["cleaner","drone","frost"][zone];
+  const locations = [[1,5,9],[1,5,11],[1,6,9]][zone];
+  for (const i of locations) {
+    enemies.push({kind,platform:platforms[i],phase:random()*6.28,stopped:0,travel:0});
+  }
+  const end = platforms.at(-1);
+  return {platforms, vents, enemies, fuses, kits, end, width:end.x+end.w, door:end.x+end.w-43};
+}
+
+function spawn() {
+  player = {x:checkpoint.x+14,y:checkpoint.y-18,w:14,h:18,vy:0,dir:1,ground:checkpoint,boost:false};
+  jumpBuffer = coyote = 0;
+  camera = clamp(player.x-100,0,level.width-W);
+}
+
+function hud() {
+  document.documentElement.style.setProperty("--zone",stages[stageIndex].accent);
+  $("sector").textContent = `0${stageIndex+1} / ${stages[stageIndex].name}`;
+  $("hearts").textContent = "♥".repeat(energy) + "♡".repeat(3-energy);
+  $("cells").textContent = `◆ ${collected}/3`;
+  $("route").textContent = `Маршрут ${seed.toString(16).toUpperCase().padStart(8,"0")}`;
+  document.querySelectorAll(".stations span").forEach((span,i) => {
+    span.classList.toggle("current",i===stageIndex);
+    span.classList.toggle("done",i<stageIndex || mode==="won");
+  });
+}
+
+function modal(state, tag, title, copy, label, next) {
+  mode = state;
+  $("overline").textContent = tag;
+  $("headline").textContent = title;
+  $("message").textContent = copy;
+  $("action").textContent = label;
+  $("action").onclick = next;
+  $("overlay").hidden = false;
+}
+
+function play() {
+  mode = "play";
+  $("overlay").hidden = true;
+  $("action").blur();
+}
+
+function loadStage(index) {
+  stageIndex = index;
+  level = generate(seed, index);
+  checkpoint = level.platforms[0];
+  time = collected = invulnerable = promptTimer = 0;
+  particles = [];
+  energy = 3;
+  spawn();
+  hud();
+  if (index === 0) {
+    modal("intro","Аварійний виклик","Краплинка зачинена!",
+      "Збери запобіжники в трьох зонах і відчини двері до Краплинки. Ворогів можна знешкодити стрибком згори.",
+      "Почати порятунок",play);
+  } else {
+    modal("brief",`Зона 0${index+1} / 03`,stages[index].name,stages[index].note,"Уперед",play);
+  }
+}
+
+function newGame() {
+  seed = crypto.getRandomValues(new Uint32Array(1))[0];
+  held.clear();
+  loadStage(0);
+}
+
+function down(key) {
+  return held.has(key) || [...touches.values()].some(touch=>touch.key===key);
+}
+
+function overlaps(a,x,y,w,h) {
+  return a.x+a.w>x && a.x<x+w && a.y+a.h>y && a.y<y+h;
+}
+
+function burst(x,y,color,count=12) {
+  for (let i=0;i<count;i++) {
+    particles.push({x,y,vx:(Math.random()-.5)*105,vy:-20-Math.random()*75,life:.35+Math.random()*.4,color});
+  }
+}
+
+function hit() {
+  if (invulnerable>0) return;
+  burst(player.x+7, player.y+9, "#ff7386");
+  energy--;
+  hud();
+  if (energy===0) {
+    modal("lost","Енергія вичерпана","Потрібна ще спроба",
+      "Повтори цю зону. Платформи та запобіжники будуть на тих самих місцях.",
+      "Повторити зону",()=>{loadStage(stageIndex);play();});
+  } else {
+    spawn();
+    invulnerable = 1.25;
+  }
+}
+
+const ventTime = vent => (time+vent.phase)%2.9;
+const ventOn = vent => ventTime(vent)>1.94;
+
+function enemyPose(enemy) {
+  const {kind, platform, travel, phase} = enemy;
+  const [w,h] = enemySizes[kind];
+  const angle = travel*(kind==="cleaner"?3.25:2.25)+phase;
+  let u = .5+.5*Math.sin(angle);
+  let clearance = 0;
+  let warning = false;
+  if (kind==="drone") {
+    const cycle = (travel+phase)%3.15;
+    warning = cycle>=1.26 && cycle<2.52;
+    const dive = Math.sin(Math.PI*clamp((cycle-1.68)/.9,0,1))**2;
+    clearance = 22+Math.sin(angle)*2-dive*21;
+  } else if (kind==="frost") {
+    const cycle = ((travel+phase)%2.6)/2.6;
+    const leg = (cycle%0.5)*2;
+    const slide = clamp((leg-.37)/.63,0,1);
+    u = cycle<.5 ? slide : 1-slide;
+    warning = leg<.37;
+  }
+  const margin = kind==="cart" ? 10 : 24;
+  const x = platform.x+margin+(platform.w-2*margin-w)*u;
+  return {x,y:platform.y-h-clearance,w,h,warning};
+}
+
+function step(dt) {
+  if (mode!=="play") return;
+  time += dt;
+  invulnerable = Math.max(0,invulnerable-dt);
+  promptTimer = Math.max(0,promptTimer-dt);
+  const p = player;
+  const oldGround = p.ground;
+  for (const platform of level.platforms) {
+    const y = platform.base+(platform.type==="lift" ? Math.round(Math.sin(time*2.25+platform.phase)*14) : 0);
+    if (platform===oldGround) p.y += y-platform.y;
+    platform.y = y;
+    if (platform.rebuild>0) {
+      platform.rebuild = Math.max(0,platform.rebuild-dt);
+    } else if (platform.type==="ice" && (platform===oldGround || platform.crack>0)) {
+      platform.crack += dt;
+      if (platform.crack>=.88) {
+        platform.rebuild = 2.6;
+        platform.crack = 0;
+        burst(platform.x+platform.w/2,platform.y,"#b4e3ff",18);
+      }
+    }
+  }
+  for (const enemy of level.enemies) {
+    if (enemy.stopped>0) enemy.stopped = Math.max(0,enemy.stopped-dt);
+    else if (!enemy.defeated) enemy.travel += dt;
+  }
+  const move = Number(down("right"))-Number(down("left"));
+  if (move) p.dir = move;
+  p.x = clamp(p.x+move*(p.boost ? 220 : 152)*dt,2,level.width-p.w-2);
+  const supported = oldGround && !oldGround.rebuild && p.x+p.w>oldGround.x && p.x<oldGround.x+oldGround.w;
+  coyote = supported ? .085 : Math.max(0,coyote-dt);
+  jumpBuffer = Math.max(0,jumpBuffer-dt);
+  const pad = supported && oldGround.spring;
+  const spring = pad && move===pad.direction && Math.abs(p.x+p.w/2-(pad.x+6))<=13;
+  if (spring || (jumpBuffer && coyote)) {
+    p.vy = spring ? -395 : -316;
+    p.boost = Boolean(spring);
+    coyote = jumpBuffer = 0;
+    burst(p.x+7,p.y+18,spring ? "#ffe495" : stages[stageIndex].top,spring ? 14 : 6);
+  }
+  const oldBottom = p.y+p.h;
+  p.vy += 850*dt;
+  p.y += p.vy*dt;
+  p.ground = null;
+  if (p.vy >= 0) {
+    for (const platform of level.platforms) {
+      if (!platform.rebuild && p.x+p.w>platform.x && p.x<platform.x+platform.w && oldBottom<=platform.y+2 &&
+        p.y+p.h>=platform.y) {
+        p.y = platform.y-p.h;
+        p.vy = 0;
+        p.boost = false;
+        p.ground = platform;
+        if (platform.save && platform!==checkpoint && platform.x>checkpoint.x) {
+          checkpoint = platform;
+          burst(platform.x+9,platform.y-15,"#a3ffcb");
+        }
+        break;
+      }
+    }
+  }
+  if (p.y>H+8) {
+    if (invulnerable) spawn();
+    else hit();
+    return;
+  }
+  for (const enemy of level.enemies) {
+    if (enemy.defeated || enemy.stopped) continue;
+    const {x,y,w,h} = enemyPose(enemy);
+    if (!overlaps(p,x,y,w,h)) continue;
+    if (oldBottom<=y+2 && p.vy>=0) {
+      if (enemy.kind==="cart") enemy.stopped = 4.5;
+      else enemy.defeated = true;
+      p.y = y-p.h;
+      p.vy = -252;
+      p.ground = null;
+      burst(x+w/2,y,stages[stageIndex].accent);
+    } else if (!invulnerable) {
+      hit();
+      return;
+    }
+  }
+  if (!invulnerable && level.vents.some(vent=>ventOn(vent)&&overlaps(p,vent.x-5,vent.top,10,H-vent.top))) {
+    hit();
+    return;
+  }
+  for (const fuse of level.fuses) {
+    const x = fuse.platform.x+fuse.offset, y = fuse.platform.y-21;
+    if (!fuse.taken && overlaps(p,x-8,y-5,16,22)) {
+      fuse.taken = true;
+      collected++;
+      burst(x,y,"#ffe58a");
+      hud();
+    }
+  }
+  for (const kit of level.kits) {
+    const x = kit.platform.x+kit.offset, y = kit.platform.y-14;
+    if (!kit.taken && energy<3 && overlaps(p,x-7,y-5,14,14)) {
+      kit.taken = true;
+      energy++;
+      burst(x,y,"#91f2b1");
+      hud();
+    }
+  }
+  if (p.ground===level.end && p.x+p.w>=level.door-5) {
+    if (collected<3) promptTimer = 2;
+    else if (stageIndex<2) {loadStage(stageIndex+1);return;}
+    else {
+      mode = "won";
+      hud();
+      modal("won","Зв’язок відновлено","Краплинку врятовано!",
+        "Краплик повернув світло на станцію. Усі три зони знову працюють, а друзі нарешті разом.",
+        "Новий маршрут",newGame);
+    }
+  }
+  camera += (clamp(p.x-112,0,level.width-W)-camera)*Math.min(1,dt*9);
+  for (const spark of particles) {
+    spark.x += spark.vx*dt;
+    spark.y += spark.vy*dt;
+    spark.vy += 230*dt;
+    spark.life -= dt;
+  }
+  particles = particles.filter(spark=>spark.life>0);
+}
+
+function box(color,x,y,w,h) {
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(x),Math.round(y),w,h);
+}
+
+function label(str,x,y,color="#f6e7d5",size=8) {
+  ctx.fillStyle = color;
+  ctx.font = `bold ${size}px monospace`;
+  ctx.fillText(str,Math.round(x),Math.round(y));
+}
+
+function cross(x,y,color) {
+  box(color,x+3,y,3,9);
+  box(color,x,y+3,9,3);
+}
+
+function lobby(s,x,room) {
+  box(s.ink,x+15,49,120,76);
+  box("#57475f",x+18,52,114,69);
+  box("#675165",x+18,79,114,42);
+  box("#8b5b6c",x+18,94,114,27);
+  box("#e8a39a",x+84,65,15,14);
+  box("#e8a39a",x+87,63,9,18);
+  for (let j=0;j<12;j++) {
+    box(j%3===0?"#c28a92":"#806676",x+21+(j*27+room*11)%105,57+(j*13)%24,1,1);
+  }
+  for (let j=0;j<9;j++) {
+    const h = 10+(j*17+room*7)%31;
+    const bx = x+18+j*13;
+    const distant = 5+(j*19+room*3)%20;
+    box("#775769",bx+4,116-distant,9,distant+5);
+    box(j%2 ? "#43344d" : "#342942",bx,121-h,10,h);
+    if (j%3===1) {
+      box("#473549",bx+2,118-h,6,3);
+      box("#a67483",bx+4,116-h,1,2);
+    }
+    for (let row=0;row<h-6;row+=6) {
+      if ((row+j)%4!==1) box("#a36b78",bx+2,124-h+row,2,2);
+      if ((row+room+j)%3) box("#785869",bx+6,125-h+row,2,2);
+    }
+  }
+  box(s.ink,x+53,52,3,71);
+  box(s.ink,x+94,52,3,71);
+  box(s.ink,x+18,87,114,3);
+  box("#826071",x+23,54,2,29);
+  box("#876374",x+59,93,1,23);
+  box("#956a77",x+100,54,2,21);
+  box(s.light,x+14,122,124,4);
+  if (room%2===0) {
+    box(s.low,x+31,133,87,26);
+    box("#754957",x+31,133,87,4);
+    box("#ab6872",x+41,140,42,3);
+    box(s.light,x+42,146,30,2);
+    cross(x+72,145,"#9d6a72");
+    box("#ce898b",x+96,123,17,10);
+    box(s.ink,x+98,125,13,6);
+    box("#b27981",x+100,127,6,1);
+    box(s.ink,x+103,131,3,2);
+    box("#886379",x+46,130,21,3);
+    box("#ae8693",x+49,129,16,1);
+  } else {
+    for (let j=0;j<3;j++) {
+      const cx=x+29+j*23;
+      box("#80546b",cx,137,17,11);
+      box("#a26777",cx,148,21,4);
+      box(s.ink,cx+2,152,2,6);
+      box(s.ink,cx+16,152,2,6);
+    }
+    box("#754d62",x+111,147,11,11);
+    box("#678b71",x+113,130,7,17);
+    box("#57816f",x+106,134,9,5);
+    box("#85a583",x+119,136,8,4);
+    box("#74a07c",x+110,132,1,12);
+    box("#86617b",x+88,129,17,13);
+    box("#664759",x+90,131,13,9);
+    box("#b08486",x+93,133,6,1);
+    box("#b08486",x+93,136,8,1);
+  }
+}
+
+function lab(s,x,room) {
+  box(s.ink,x+16,55,122,71);
+  box("#294f5a",x+20,59,114,63);
+  box("#38606a",x+20,59,114,3);
+  box("#3c6970",x+21,102,112,3);
+  box("#4b7779",x+26,63,59,3);
+  box("#3d646d",x+83,65,3,33);
+  box("#688583",x+30,62,3,6);
+  box("#688583",x+54,62,3,6);
+  box("#688583",x+76,62,3,6);
+  if (room%3===1) {
+    box("#436c74",x+31,80,51,20);
+    box("#639697",x+37,75,39,6);
+    box("#92bcb0",x+40,72,33,4);
+    box("#173743",x+38,86,36,9);
+    box("#95e1ba",x+42,89,14,2);
+    box("#d58c82",x+66,88,4,4);
+    for (let j=0;j<3;j++) box("#678e8f",x+42+j*7,96,4,1);
+  } else {
+    for (let j=0;j<5;j++) {
+      const tx = x+24+j*13, y = 78+(j*7+room)%13;
+      box("#24434f",tx,y-3,9,23);
+      box("#588989",tx+1,y-2,7,17);
+      box(j%2 ? "#e58483" : "#62ad9c",tx+2,y+6,5,8);
+      box("#a7d5b5",tx+2,y,1,7);
+      box("#abc8a4",tx-1,y-4,11,3);
+      const rise=Math.floor((visualTime*9+j*11)%7);
+      box("#c3b6a7",tx+3,y+11-rise,1,1);
+    }
+  }
+  box(s.ink,x+98,74,28,24);
+  box("#3c6c72",x+101,77,22,18);
+  const scan = Math.floor(visualTime*10)%16;
+  box("#568a8a",x+102,78+scan,20,1);
+  for (let j=0;j<18;j+=2) {
+    box("#88c4a6",x+103+j,86+((j+room)%7===0?-5:j%4===0?2:0),2,1);
+  }
+  box(s.low,x+13,127,127,27);
+  box(s.light,x+13,125,127,5);
+  for (let j=0;j<3;j++) {
+    box("#29505a",x+22+j*38,133,32,16);
+    box("#4c7777",x+34+j*38,136,8,2);
+  }
+  box("#5c8788",x+22,115,21,10);
+  box("#8ac0a8",x+25,113,14,3);
+  box("#517f82",x+104,107,5,17);
+  box("#79a9a1",x+95,107,13,4);
+  box("#304e58",x+62,117,22,8);
+  box("#588387",x+63,117,20,2);
+  for (let tube=0;tube<4;tube++) {
+    const tx=x+65+tube*5;
+    box("#94b9ac",tx,112+tube%2*2,3,6);
+    box("#ae717b",tx+1,116,2,3);
+  }
+}
+
+function coldRoom(s,x,room) {
+  box(s.ink,x+15,49,124,110);
+  if (room%3===1) {
+    box("#293c5f",x+22,55,110,98);
+    box("#6b8db1",x+27,62,9,83);
+    box("#52769a",x+36,62,86,6);
+    box("#4d7196",x+116,66,6,70);
+    box("#86a4c0",x+27,62,3,80);
+    for (let i=0;i<3;i++) {
+      const y=74+i*28;
+      box("#a9bccf",x+25,y,13,3);
+      box("#557294",x+26,y+3,11,2);
+    }
+    for (let i=0;i<4;i++) {
+      const y=76+i*17;
+      box("#3c557c",x+43,y,66,12);
+      box("#516f94",x+43,y,66,2);
+      for (let slit=0;slit<6;slit++) box("#223650",x+48+slit*10,y+5,7,3);
+    }
+    box("#aed8df",x+119,131,4,3);
+    for (let i=0;i<7;i++) {
+      const drift=(i*17+Math.floor(visualTime*9))%76;
+      box("#6a87a5",x+41+drift,139+i%3*4,8+i%3*3,1);
+    }
+    return;
+  }
+  for (let j=0;j<3;j++) {
+    const tx=x+20+j*39;
+    box("#3b527b",tx,54,35,101);
+    box("#566e94",tx+1,55,33,5);
+    box("#273d61",tx+4,65,27,56);
+    box("#436287",tx+6,67,23,49);
+    box("#7291b0",tx+7,68,4,36);
+    for (let i=0;i<4;i++) {
+      const px=tx+9+(i*7+room)%17, py=71+(i*11+j*4)%26;
+      box("#799fba",px-1,py,3,1);
+      box("#97b6cd",px,py-1,1,3);
+    }
+    box("#5c7d9e",tx+8,104,21,10);
+    box("#a4cada",tx+8,104,17,2);
+    for (let j=0;j<3;j++) box("#b3cfdf",tx+9+j*6,106,2,3+j%2*3);
+    box("#192940",tx+7,129,13,7);
+    box((j+room)%3===0?"#ed9ba1":"#9fe1dc",tx+9,131,5,2);
+    box("#a1aeca",tx+24,126,3,17);
+    box("#6c8aaa",tx+6,143,12,2);
+    box("#617b9f",tx+7,146,8,1);
+  }
+}
+
+function backdrop(s) {
+  box(s.wall,0,0,W,H);
+  box(s.low,0,0,W,32);
+  box(s.ink,0,0,W,22);
+  box(s.light,0,32,W,2);
+  box(s.low,0,162,W,54);
+  box(s.light,0,162,W,2);
+  const scroll = Math.floor(camera*.38);
+  const first = Math.floor(scroll/154);
+  for (let room=first;room<=first+3;room++) {
+    const x = room*154-scroll;
+    const scene = room+(seed%3);
+    box(s.ink,x+2,31,7,152);
+    box(s.light,x+2,35,2,145);
+    box(s.ink,x+29,37,94,7);
+    box(s.top,x+34,39,84,2);
+    box(s.light,x+26,44,100,2);
+    if (stageIndex===0) lobby(s,x,scene);
+    else if (stageIndex===1) lab(s,x,scene);
+    else coldRoom(s,x,scene);
+    box(s.ink,x+8,155,142,2);
+    box(s.light,x+9,158,138,1);
+    box(s.wall,x+8,173,144,3);
+    box(s.ink,x+26,181,96,2);
+    for (let j=0;j<5;j++) box(s.light,x+16+j*28,200,12,2);
+  }
+  for (let i=0;i<23;i++) {
+    const x = ((i*137+visualTime*(5+i%4)-scroll*.24)%W+W)%W;
+    const y = 45+(i*43)%153+Math.sin(visualTime+i)*4;
+    box(i%4===0 ? s.top : s.light,x,y,i%4===0?2:1,1);
+  }
+  for (let y=199;y<H;y+=4) box("#100f23",0,y,W,1);
+}
+
+function progress(s) {
+  box(s.ink,8,7,109,14);
+  cross(11,9,s.accent);
+  label(stages[stageIndex].name.toUpperCase(),24,18,s.accent,7);
+  const x = W-113, w = 99;
+  box(s.ink,x-5,7,w+12,14);
+  box(s.light,x,13,w,2);
+  const at = worldX => x+Math.round((w-2)*worldX/level.width);
+  for (const platform of level.platforms) {
+    if (platform.save) box(platform===checkpoint?"#a8f2c1":s.tile,at(platform.x),11,2,6);
+  }
+  for (const fuse of level.fuses) {
+    box(fuse.taken ? "#9e814f" : "#ffda81",at(fuse.platform.x+fuse.offset),12,3,4);
+  }
+  box("#fff1e1",at(player.x),10,3,8);
+  box(collected===3?"#a8f2c1":"#f58992",x+w-1,10,3,8);
+}
+
+function sprite(x,y,dir,girl=false,pose="idle") {
+  const ink = girl ? "#32182e" : "#2d1529";
+  const dark = girl ? "#9d315d" : "#93283f";
+  const mid = girl ? "#e65387" : "#e44b55";
+  const light = girl ? "#ff89a6" : "#ff7770";
+  const shine = girl ? "#ffd0ce" : "#ffd2af";
+  const blink = (visualTime+(girl?1.7:0))%4.3>4.16;
+  const stride = pose==="run" ? Math.floor(time*15)%2 : 0;
+  const airborne = pose==="jump";
+  ctx.save();
+  ctx.translate(Math.round(x)+(dir<0?18:-4),Math.round(y)-6);
+  ctx.scale(dir,1);
+  // Stagger the silhouette by whole pixels to give each drop a distinct curl.
+  const outline = girl ? [[10,1,5,2],[7,3,8,2],[5,5,12,3]] : [[7,0,4,2],[6,2,6,2],[5,4,10,4]];
+  for (const [sx,sy,w,h] of outline) box(ink,sx,sy,w,h);
+  box(ink,3,8,16,3);
+  box(ink,1,11,20,8);
+  box(ink,2,19,18,2);
+  box(ink,5,21,12,1);
+  box(dark,3,11,17,8);
+  box(dark,5,19,12,2);
+  box(mid,4,9,14,10);
+  box(mid,6,6,9,5);
+  box(mid,girl?9:7,girl?4:2,girl?5:4,4);
+  box(light,6,8,8,3);
+  box(light,4,11,11,5);
+  box(light,6,16,8,2);
+  box(shine,7,6,3,2);
+  box(shine,5,10,2,3);
+  box("#b73d58",15,17,4,1);
+
+  // The near eye has a separate highlight so the face reads in motion.
+  if (blink) {
+    box(ink,12,13,4,1);
+    box(ink,18,13,2,1);
+  } else {
+    box("#fff7e5",11,11,5,5);
+    box("#fff7e5",17,12,3,4);
+    box(ink,14,12,2,4);
+    box(ink,19,13,1,3);
+    box("#ffdfcd",14,12,1,1);
+  }
+  box(girl?"#ffb4bc":"#ffa38d",9,16,2,1);
+  box(ink,15,17,2,1);
+  box("#ffb7a1",16,18,2,1);
+
+  const gloveY = airborne ? 15 : pose==="wave" ? 11 : 17+stride;
+  if (girl) {
+    box("#7b3355",3,6,9,4);
+    box("#ffce71",3,6,3,3);
+    box("#ffed9c",9,6,3,3);
+    box("#fff2be",6,7,3,2);
+    box("#286b66",4,19,12,2);
+    box("#8de6c2",5,18,10,2);
+    box("#479b8b",4,20,3,3);
+    box(ink,1,gloveY,4,3);
+    box("#ffe5cb",2,gloveY,2,2);
+  } else {
+    box("#4f2e4a",0,14,5,6);
+    box("#85627b",1,14,3,3);
+    box("#ffca8b",5,14,1,5);
+    box("#f3bd86",7,15,4,3);
+    box("#fff2cc",8,16,2,1);
+    box(ink,2,gloveY,4,3);
+    box("#ffe6c5",3,gloveY,2,2);
+  }
+  const heel = airborne ? 21 : 22;
+  box(ink,3+stride,heel-stride,6,2);
+  box(ink,13-stride,heel-(1-stride),6,2);
+  box(girl?"#b8f4d7":"#ffdcad",4+stride,heel-stride,4,1);
+  box(girl?"#b8f4d7":"#ffdcad",14-stride,heel-(1-stride),4,1);
+  ctx.restore();
+}
+
+function drawEnemy(enemy) {
+  const {kind,stopped,travel} = enemy;
+  const {x,y,w,h,warning} = enemyPose(enemy);
+  const ink = "#20152c";
+  if (kind==="cart") {
+    box(ink,x-2,y,w+4,10);
+    box("#cea5ac",x,y+1,w,3);
+    box("#80556b",x,y+5,w,3);
+    box(stopped?"#8dcba1":"#ff797e",x+14,y-2,5,4);
+    box("#e9c8be",x+1,y+8,4,3);
+    box("#e9c8be",x+15,y+8,4,3);
+  } else if (kind==="cleaner") {
+    const legs = Math.floor(travel*16)%2;
+    box(ink,x,y+5,w,h-5);
+    box(ink,x+3,y+2,w-6,5);
+    box("#d46d57",x+1,y+6,w-2,4);
+    box("#f6a36d",x+4,y+3,w-8,3);
+    box("#71364d",x+5,y+7,9,3);
+    box("#ffd588",x+7,y+7,2,2);
+    box("#ffd588",x+11,y+7,2,2);
+    box("#b77967",x+2+legs,y+11,4,2);
+    box("#b77967",x+12-legs,y+11,4,2);
+  } else if (kind==="drone") {
+    const rotor = Math.floor(visualTime*22)%3;
+    box("#89d2be",x-2+rotor,y+1,w+4-rotor*2,1);
+    box(ink,x+2,y+3,w-4,h-3);
+    box("#548987",x+3,y+4,w-6,5);
+    box("#9de1c8",x+5,y+4,w-10,1);
+    box(warning?"#ff726f":"#ffe28a",x+7,y+6,4,3);
+    box("#79c3b6",x+5,y+10,2,2);
+    box("#79c3b6",x+11,y+10,2,2);
+    if (warning) box("#ffb598",x+8,y+14,2,3);
+  } else {
+    box(ink,x,y+4,w,h-6);
+    box(ink,x+3,y+1,w-6,h-1);
+    box("#6793c8",x+2,y+4,w-4,h-6);
+    box("#aedbf1",x+3,y+3,w-6,6);
+    box("#e1f6ff",x+5,y+3,5,2);
+    box("#4d71a8",x+4,y+10,8,2);
+    box(warning?"#ffd486":"#3f4b79",x+5,y+7,2,2);
+    box(warning?"#ffd486":"#3f4b79",x+9,y+7,2,2);
+    if (!warning) box("#94c9ed",x+5+Math.floor(travel*18)%5,y+12,2,2);
+  }
+}
+
+function heroScene(s, reunited) {
+  const x = 275;
+  box(s.low,x-39,48,100,142);
+  box(s.tile,x-36,49,94,5);
+  box(s.wall,x-31,57,84,132);
+  box(s.ink,x-24,65,70,125);
+  box(reunited?"#48696c":"#683c51",x-21,68,64,120);
+  box(reunited?"#97d6ae":"#e396a0",x+4,55,16,4);
+  cross(x+6,74,reunited?"#91c8a6":"#d28a98");
+  for(let i=0;i<9;i++) {
+    box(reunited?"#6b9790":"#824c60",x-19+i*7,90,2,93);
+    box(s.light,x-47+i*13,183,7,2);
+  }
+  box(s.ink,x-67,178,162,18);
+  box(s.tile,x-66,179,160,6);
+  box(s.top,x-66,179,160,2);
+  ctx.save();
+  ctx.translate(x-49,176-54);
+  ctx.scale(3,3);
+  sprite(0,0,1);
+  sprite(22,0,-1,true,reunited?"wave":"idle");
+  ctx.restore();
+  if (!reunited) {
+    box("#9a5c73",x+13,110,3,67);
+    box("#9a5c73",x+37,110,3,67);
+    box("#a9687e",x+13,112,27,3);
+  }
+  for (let i=0;i<12;i++) {
+    const dx = x-66+(i*29)%156, dy = 58+(i*37-visualTime*9)%115;
+    box(i%3===0 ? s.accent : s.light,dx,dy,2,2);
+  }
+}
+
+function floorTile(s, platform) {
+  const {x,y,w,type,crack,rebuild,spring,save} = platform;
+  if (type==="lift") {
+    for (const rail of [x+11,x+w-13]) {
+      box(s.ink,rail,46,4,173);
+      for (let rung=49;rung<H;rung+=8) box(s.light,rail+1,rung,2,4);
+    }
+  } else if (type==="floor") {
+    box(s.ink,x+6,y+11,7,H-y-11);
+    box(s.ink,x+w-13,y+11,7,H-y-11);
+    box(s.tile,x+8,y+15,2,H-y-15);
+    box(s.tile,x+w-11,y+15,2,H-y-15);
+  }
+  if (rebuild) {
+    for (let part=x+2;part<x+w;part+=9) box(s.light,part,y,4,1);
+    return;
+  }
+  box(s.ink,x-1,y+1,w+2,15);
+  box(type==="ice"?"#7091bf":s.tile,x,y+3,w,11);
+  box(type==="ice"?"#d7f3fc":s.top,x,y,w,3);
+  for(let tile=x+4;tile<x+w-5;tile+=12) {
+    box(type==="ice"?"#b7ddeb":s.light,tile,y+5,6,2);
+    if (type==="ice") box("#97bdda",tile+2,y+8,3,(tile%4)+2);
+    else box(s.low,tile+3,y+11,2,2);
+  }
+  if (type==="lift") {
+    box("#12192f",x+w/2-8,y+3,16,8);
+    box("#a1e1ee",x+w/2-4,y+6,8,2);
+  }
+  if (crack) {
+    for(let part=x+5;part<x+w-7;part+=11) {
+      box("#d7f3fc",part,y-1,2,2);
+      box("#43537a",part,y+1,2,6);
+      if (crack>.38) box("#43537a",part+2,y+6,4,2);
+      if (crack>.64) box("#43537a",part+5,y+7,2,6);
+    }
+  }
+  if (spring) {
+    const sx = spring.x;
+    box("#40283b",sx-5,y-6,23,7);
+    box("#b77548",sx-4,y-4,21,4);
+    box("#ffdf89",sx-4,y-6,21,2);
+    const pulse=Math.round(Math.sin(visualTime*6)*2);
+    box("#ffdf89",sx+4,y-18+pulse,5,2);
+    box("#ffdf89",sx+2,y-16+pulse,9,2);
+    box("#ffdf89",sx+6+spring.direction*7,y-12+pulse,3,2);
+  }
+  if (save) {
+    const active = platform.x<=checkpoint.x;
+    box(s.ink,x+7,y-22,3,22);
+    box(active?"#97e4ba":s.light,x+10,y-22,11,7);
+    box(active?"#d4ffe2":s.tile,x+10,y-22,8,2);
+  }
+}
+
+function render() {
+  const s = stages[stageIndex];
+  backdrop(s);
+  if (mode==="intro" || mode==="won") {
+    heroScene(s,mode==="won");
+    return;
+  }
+  ctx.save();
+  ctx.translate(-Math.round(camera),0);
+  for (const platform of level.platforms) {
+    const {x,w} = platform;
+    if (x+w<camera-5 || x>camera+W+5) continue;
+    floorTile(s,platform);
+  }
+  for (const vent of level.vents) {
+    box(s.ink,vent.x-12,201,24,10);
+    box(s.top,vent.x-9,201,18,3);
+    for(let slit=-8;slit<9;slit+=4) box(s.tile,vent.x+slit,205,2,4);
+    if (ventOn(vent)) {
+      for (let j=0;j<10;j++) {
+        const y = 203-(j*13+time*73)%(207-vent.top);
+        const x = vent.x+Math.round(Math.sin(j*3+time*13)*5);
+        box(j%2 ? "#b9fff1" : "#63aaab",x-4,y,8,4);
+        box("#65bdb3",x-2,y+4,5,3);
+      }
+    } else if (ventTime(vent)>1.5) {
+      box("#ffe58a",vent.x-3,vent.top+3,6,2);
+      box("#ffe58a",vent.x-2,vent.top-5,3,5);
+    }
+  }
+  for (const enemy of level.enemies) if (!enemy.defeated) drawEnemy(enemy);
+  for (const {platform,offset,taken} of level.fuses) {
+    if (taken) continue;
+    const x=platform.x+offset, y=platform.y-22+Math.round(Math.sin(time*5+offset)*2);
+    box("#4e3744",x-6,y-4,12,10);
+    box("#4e3744",x-4,y-6,8,14);
+    box("#c79258",x-4,y-4,8,10);
+    box("#ffdc84",x-2,y-7,4,14);
+    box("#fff6c7",x-1,y-3,2,6);
+  }
+  for (const {platform,offset,taken} of level.kits) {
+    if (taken) continue;
+    const x = platform.x+offset, y = platform.y-15;
+    box(s.ink,x-8,y-5,16,14);
+    box("#2e6b65",x-7,y-4,14,12);
+    cross(x-4,y-3,"#a3f2bc");
+  }
+  const {door,end} = level;
+  const open = collected===3;
+  box(s.ink,door-8,end.y-46,39,46);
+  box(s.tile,door-6,end.y-44,35,43);
+  box(s.top,door-6,end.y-44,35,2);
+  box(open?"#29454d":s.low,door-1,end.y-34,25,34);
+  for(let i=0;i<3;i++) box(i<collected?"#a3f2bc":"#fb8990",door+3+i*6,end.y-40,4,3);
+  if (!open) {
+    box(s.light,door+2,end.y-31,8,27);
+    box(s.light,door+13,end.y-31,8,27);
+  }
+  if (stageIndex===2 && open) sprite(door+3,end.y-19,-1,true);
+  if (promptTimer) label(`Ще ${3-collected} ◆`,door-17,end.y-45,"#ffe58a");
+  const p = player;
+  if (!invulnerable || Math.floor(invulnerable*18)%2===0) {
+    const pose = !p.ground ? "jump" : down("left")||down("right") ? "run" : "idle";
+    sprite(p.x,p.y,p.dir,false,pose);
+  }
+  for (const spark of particles) box(spark.color,spark.x,spark.y,2,2);
+  ctx.restore();
+  progress(s);
+}
+
+function pause() {
+  if (mode==="play") modal("pause","Сигнал на утриманні","Пауза","Краплик готовий рушати далі.","Продовжити",play);
+  else if (mode==="pause") play();
+}
+
+window.addEventListener("keydown",event=>{
+  if (event.code==="Escape" && !event.repeat) pause();
+  const key = keys.get(event.code);
+  if (!key || (mode!=="play" && event.target instanceof HTMLButtonElement)) return;
+  event.preventDefault();
+  if (mode!=="play") {
+    if (event.code==="Space"&&!event.repeat) $("action").click();
+    return;
+  }
+  if (key==="jump"&&!event.repeat) jumpBuffer=.12;
+  held.add(key);
+});
+window.addEventListener("keyup",event=>held.delete(keys.get(event.code)));
+window.addEventListener("blur",()=>{
+  held.clear();
+  for (const {button} of touches.values()) button.classList.remove("held");
+  touches.clear();
+});
+for (const button of document.querySelectorAll("[data-key]")) {
+  const key = button.dataset.key;
+  button.addEventListener("pointerdown",event=>{
+    if (mode!=="play") return;
+    event.preventDefault();
+    button.setPointerCapture(event.pointerId);
+    touches.set(event.pointerId,{key,button});
+    button.classList.add("held");
+    if (key==="jump") jumpBuffer=.12;
+  });
+  const release = event=>{
+    touches.delete(event.pointerId);
+    if (![...touches.values()].some(touch=>touch.button===button)) button.classList.remove("held");
+  };
+  for (const type of ["pointerup","pointercancel","lostpointercapture"]) button.addEventListener(type,release);
+}
+$("restart").onclick = newGame;
+newGame();
+let last = performance.now(), accumulator = 0;
+function frame(now) {
+  const elapsed = Math.min(.05,(now-last)/1000);
+  visualTime += elapsed;
+  accumulator += elapsed;
+  last = now;
+  while (accumulator>=1/120) {
+    step(1/120);
+    accumulator -= 1/120;
+  }
+  render();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>
